@@ -11,23 +11,47 @@ data LispVal = Atom String
               |Number Integer
               |String String
               |Bool Bool
+              |Character Char
+              |Float Double
 
 -- define Show for LispVal
 instance Show LispVal where
   show (String str) = str
-  show (Bool b) = (show b)
-  show (Number i) = (show i)
+  show (Bool b) = show b
+  show (Number i) = show i
   show (Atom str) = str
-  show (List xs) = "(" ++ (intercalate " " $ map show xs) ++ ")"
-  show (DottedList xs x) = "(" ++ (intercalate " " $ map show xs) ++ ")"
+  show (List xs) = "(" ++ unwords (map show xs) ++ ")"
+  show (DottedList xs _) = "(" ++  unwords (map show xs) ++ ")"
+  show (Character ch) = show ch
+  show (Float d) = show d
 
+escapes :: Parser Char
+escapes = do
+            char '\\'
+            ch <- oneOf "\"\\ntr"
+            return ch
 
 parseString :: Parser LispVal
 parseString = do
                 char '"'
-                x <- many (noneOf "\"")
+                x <- many (escapes <|> noneOf "\\\"")
                 char '"'
                 return $ String x
+
+parseCharacterName :: Parser Char
+parseCharacterName = do
+                        st <- string "newline"  <|> string "space"
+                        return $ case st of
+                                    "newline" -> '\n'
+                                    "space" -> ' '
+
+
+parseCharacter :: Parser LispVal
+parseCharacter = do
+                  char '#'
+                  char '/'
+                  ch <-   try parseCharacterName <|> anyChar
+                  return $ Character ch
 
 parseAtom :: Parser LispVal
 parseAtom = do
@@ -43,7 +67,8 @@ parseNumber :: Parser LispVal
 parseNumber = liftM (Number . read) $ many1 digit
 
 parseExpr :: Parser LispVal
-parseExpr = parseAtom
+parseExpr = try parseCharacter
+          <|> parseAtom
           <|> parseString
           <|> parseNumber
 
